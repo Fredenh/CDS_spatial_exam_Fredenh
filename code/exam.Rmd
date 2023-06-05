@@ -1,0 +1,281 @@
+---
+title: "exam"
+author: "Frederik Normann Holm"
+date: "2023-06-05"
+output: html_document
+---
+
+
+
+```{r packages}
+install.packages("leaflet")
+install.packages("mapboxapi", dependencies = TRUE)
+```
+
+```{r libraries}
+library(raster)
+library(sp)
+library(rgdal)
+library(rgeos)
+library(readr)
+library(sf)
+library(mapboxapi)
+library(leaflet)
+library(dplyr)
+```
+
+```{r mapbox-auth, eval = FALSE}
+# either paste it in directly, or in a txt file that you store locally and "ignore"
+my_token <- "pk.eyJ1IjoiZnJlZGVuaCIsImEiOiJjbGV3cWh2eWswNjBrM3FuMGtrdWF3ejRxIn0.HnZxRawLqROSoooxNZCztA"
+# my_token <- read_file("mytoken.txt")
+mb_access_token(my_token, install = TRUE, overwrite = TRUE)
+```
+
+
+```{r geocode}
+data <- read_csv("../data/var-risk-aggr-l3p122_unit-dimensionless_stat-rank_class3-3.csv")
+
+colnames(data) <- trimws(colnames(data))
+
+italy_data <- data[data$`lat-1` >= 35.5 & data$`lat-1` <= 47 & data$`lon-1` >= 6 & data$`lon-1` <= 18 & !is.na(data$`Aggregated-fire-risk`), ]
+
+italy_data$`Aggregated-fire-risk` <- as.numeric(italy_data$`Aggregated-fire-risk`)
+
+italy_sp <- st_as_sf(italy_data, coords = c("lon-1", "lat-1"), crs = 4326)
+
+raster_layer <- raster()
+
+extent(raster_layer) <- extent(italy_sp)
+
+projection(raster_layer) <- CRS("+proj=longlat +datum=WGS84")
+
+raster_layer <- rasterize(italy_sp, raster_layer, field = italy_sp$`Aggregated-fire-risk`, na.rm = TRUE)
+plot(raster_layer)
+```
+
+```{r mapbox-nobel}
+library(ggplot2)
+
+# Convert raster layer to a data frame
+raster_df <- rasterToPoints(raster_layer)
+
+# Convert to data frame
+raster_df <- as.data.frame(raster_df, xy = TRUE)
+
+# Plot using ggplot2 and geom_point()
+ggplot(raster_df, aes(x = x, y = y, color = layer)) +
+  geom_point(size = 1.5) +
+  scale_color_gradient(low = "blue", high = "red") +
+  labs(title = "Wildfire Risk Map", x = "Longitude", y = "Latitude") +
+  theme_bw()
+```
+
+```{r}
+raster_df <- raster::as.data.frame(raster_layer, xy = TRUE)
+
+# Define color palette
+colors <- c("blue", "red")
+
+# Create the leaflet map
+leaflet_map <- leaflet() %>%
+  addTiles() %>%
+  addRasterImage(raster_layer, colors = colors, opacity = 0.7) %>%
+  addLegend(position = "bottomright",
+            title = "Risk Level",
+            colors = colors,
+            labels = c("Low Risk", "High Risk"),
+            opacity = 0.5)
+
+# Display the map
+leaflet_map
+```
+```{r}
+# Making line plot of tourism in Italy between 2012 and 2021
+italy_tourism <- read.csv("../data/italy_tourism.csv")
+
+# Subset the data for Italy (geo = "IT")
+subset_data <- italy_tourism[italy_tourism$geo == "IT", ]
+
+# Create the line plot using ggplot
+ggplot(subset_data, aes(x = TIME_PERIOD, y = OBS_VALUE)) +
+  geom_line() +
+  labs(title = "Tourism in Italy",
+       x = "Year",
+       y = "Number of Tourists (Millions)") +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_continuous(breaks = seq(2012, 2021, 1)) +
+  expand_limits(x = c(2012, 2021))
+
+
+```
+
+
+```{r}
+tourism <- read.csv("../data/tour_occ_arn3_page_linear.csv")
+#"C:\\Users\\frede\\Desktop\\spatial-data\\tour_occ_arn3_page_linear.csv"
+
+# Define the mapping of old values to new values
+region_mapping <- c("ITC1" = "Piemonte",
+                    "ITC2" = "Valle d'Aosta",
+                    "ITC3" = "Liguria",
+                    "ITC4" = "Lombardia",
+                    "ITF1" = "Abruzzo",
+                    "ITF2" = "Molise",
+                    "ITF3" = "Campania",
+                    "ITF4" = "Puglia",
+                    "ITF5" = "Basilicata",
+                    "ITF6" = "Calabria",
+                    "ITG1" = "Sicilia",
+                    "ITG2" = "Sardegna",
+                    "ITH2" = "Trento",
+                    "ITH3" = "Veneto",
+                    "ITH4" = "Friuli-Venezia Giulia",
+                    "ITH5" = "Emilia-Romagna",
+                    "ITI1" = "Toscana",
+                    "ITI2" = "Umbria",
+                    "ITI3" = "Marche",
+                    "ITI4" = "Lazio")
+                    
+# Replace the values in the "geo" column using recode()
+tourism <- tourism %>%
+  mutate(geo = recode(geo, !!!region_mapping))
+```
+
+```{r}
+library(ggplot2)
+library(scales)
+
+# Filter the data for the year 2019
+filtered_data <- subset(tourism, TIME_PERIOD == 2019)
+
+# Abbreviate region names to the first 4 letters
+filtered_data$geo <- substr(filtered_data$geo, 1, 4)
+
+# Create a bar plot
+ggplot(data = filtered_data, aes(x = geo, y = OBS_VALUE)) +
+  geom_bar(stat = "identity", fill = "blue") +
+  labs(title = "Number of Tourists in Each Region (2019)",
+       x = "Region",
+       y = "Number of Tourists") +
+  scale_y_continuous(labels = comma_format(big.mark = ",", suffix = "M"))
+```
+```{r}
+colors <- c("blue", "red")
+colours <- c("orange", "green", "black")
+```
+
+```{r nobel-drive}
+# Example of the wildfire scenario i was caught in
+Trieste_coords <- c(13.687418, 45.765592)
+Trieste  <- mb_geocode("San Pelagio. Trieste, 34011, Italy")
+
+trieste_drive <- mb_isochrone(Trieste,
+                                 profile = "driving",
+                                 time = c(10, 15, 20))
+
+trieste_cycle <- mb_isochrone(Trieste,
+                                 profile = "cycling",
+                                 time = c(10, 15, 20))
+
+trieste_walk <- mb_isochrone(Trieste,
+                                 profile = "walking",
+                                 time = c(10, 15, 20))
+
+Trieste <- leaflet() %>%
+    addMapboxTiles(style_id = "outdoors-v11",
+                   username = "mapbox") %>%
+    addRasterImage(raster_layer, colors = colors, opacity = 0.5) %>%
+    setView(lng = Trieste_coords[1], lat = Trieste_coords[2], zoom = 10.5) %>%
+    addPolygons(data = trieste_drive[2, ],  # Select the row for 15 minutes
+                color = rev("orange"),  # Select the corresponding color
+                fillColor = rev("orange"),
+                fillOpacity = 0.4,
+                opacity = 0.4,
+                weight = 0.2) %>%
+    addPolygons(data = trieste_cycle[2, ], 
+                color = rev("green"),
+                fillColor = rev("green"),
+                fillOpacity = 0.4, 
+                opacity = 0.4, 
+                weight = 1) %>%
+    addPolygons(data = trieste_walk[2, ],  # Select the row for 15 minutes
+                color = rev("black"),  # Select the corresponding color
+                fillColor = rev("black"),
+                fillOpacity = 0.4,
+                opacity = 0.4,
+                weight = 1) %>%
+    addLegend(position = "bottomright",
+              labels = c("driving", "cycling", "walking"),  # Change the label to 15
+              colors = colours,  # Select the corresponding color
+              title = "Drive, cycle, walk-distance<br/> in 15 minutes<br/> from high risk location<br/> San Pelagio") %>%
+    addLegend(position = "topright",
+              title = "wildfire risk Level",
+              colors = colors,
+              labels = c("Low Risk", "High Risk"),
+              opacity = 0.5)
+Trieste
+```
+
+
+```{r}
+# Define the coordinates for Lombardia
+Lombardia_coords <- c(10.190965, 45.891964)
+
+Lombardia <- mb_geocode("Darfo Boario Terme. Brescia, 25047, Italy")
+
+# iscochrones
+Lom_drive <- mb_isochrone(Lombardia,
+                                 profile = "driving",
+                                 time = c(10, 15, 20))
+
+Lom_cycle <- mb_isochrone(Lombardia,
+                                 profile = "cycling",
+                                 time = c(10, 15, 20))
+
+Lom_walk <- mb_isochrone(Lombardia,
+                                 profile = "walking",
+                                 time = c(10, 15, 20))
+
+# Create the leaflet map
+Lom <- leaflet() %>%
+  addMapboxTiles(style_id = "outdoors-v11",
+                 username = "mapbox") %>%
+  setView(lng = Lombardia_coords[1], lat = Lombardia_coords[2], zoom = 10.5) %>%
+  addRasterImage(raster_layer, colors = colors, opacity = 0.5) %>%
+  addPolygons(data = Lom_drive[2, ],  # Select the row for 15 minutes
+              color = rev("orange"),  # Select the corresponding color
+              fillColor = rev("orange"),
+              fillOpacity = 0.4,
+              opacity = 0.4,
+              weight = 0.2) %>%
+  addPolygons(data = Lom_cycle[2, ], 
+              color = rev("green"),
+              fillColor = rev("green"),
+              fillOpacity = 0.4, 
+              opacity = 0.4, 
+              weight = 1) %>%
+  addPolygons(data = Lom_walk[2, ],  # Select the row for 15 minutes
+              color = rev("black"),  # Select the corresponding color
+              fillColor = rev("black"),
+              fillOpacity = 0.4,
+              opacity = 0.4,
+              weight = 1) %>%
+  addLegend(position = "bottomright",
+            labels = c("driving", "cycling", "walking"),  # Change the label to 15
+            colors = colours,  # Select the corresponding color
+            title = "Drive, cycle, walk-distance<br/> in 15 minutes<br/> from high risk location<br/> Darfo Boario Terme") %>%
+  addLegend(position = "topright",
+            title = "wildfire risk Level",
+            colors = colors,
+            labels = c("Low Risk", "High Risk"),
+            opacity = 0.5)
+
+# Display the map
+Lom
+```
+
+
+
+
+
+

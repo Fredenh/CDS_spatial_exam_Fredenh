@@ -1,0 +1,12 @@
+knitr
+rmdformats
+sp
+raster
+readr
+sf
+mapboxapi
+leaflet
+dplyr
+scales
+ggplot2
+htmlwidgets

@@ -17,5 +17,14 @@ There are four folders in this repository:
 * _code_ is where the main pipeline of R code is located and its knitted html document
 
 # Usage
-Firstly, make sure you have these libraries in order to run the code:
-
+Firstly, make sure you have these libraries in order to run the code: 
+* ```raster```
+* ```sp```
+* ```readr```
+* ```sf```
+* ```mapboxapi```
+* ```leaflet```
+* ```dplyr```
+* ```scales```
+* ```ggplot2```
+* ```htmlwidgets```

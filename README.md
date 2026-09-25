@@ -30,6 +30,5 @@ Firstly, make sure you have these libraries in order to run the code:
 * ```htmlwidgets```
 
 Then do the following:
-* Clone the repository ```git clone https://github.com/Fredenh/CDS_spatial_exam_Fredenh.git```
 * install the packages ```install.packages("package")```
 * then run and knit the code. Make sure to check the outputs in the _maps_ and _figs_ folders
